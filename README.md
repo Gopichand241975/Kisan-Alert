@@ -5,6 +5,17 @@ Built for the farmers who want advices about their crops
 # Live demo:
 https://kisan-alert-v7ogbp8umwp25t72rgfzj9.streamlit.app/
 
+## Screenshots
+
+### Farmer diagnosis screen
+![Farmer diagnosis screen](screenshots/farmer-tab.png)
+
+### Weather & irrigation advisory
+![Weather advisory screen](screenshots/weather-tab.png)
+
+### RSK flagged cases dashboard
+![RSK dashboard](screenshots/rsk-tab.png)
+
 
 **Two working core flows:**
 1. **Crop health diagnosis** — voice or typed description + photo, analyzed by
