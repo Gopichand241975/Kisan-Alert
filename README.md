@@ -2,7 +2,7 @@
 
 Built for the farmers who want advices about their crops
 
-# deployment:
+# Live demo:
 https://kisan-alert-v7ogbp8umwp25t72rgfzj9.streamlit.app/
 
 
