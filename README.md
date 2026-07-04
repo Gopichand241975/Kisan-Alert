@@ -2,6 +2,10 @@
 
 Built for the farmers who want advices about their crops
 
+# deployment:
+https://kisan-alert-v7ogbp8umwp25t72rgfzj9.streamlit.app/
+
+
 **Two working core flows:**
 1. **Crop health diagnosis** — voice or typed description + photo, analyzed by
    Gemini, spoken back in the farmer's language, with automatic escalation to
