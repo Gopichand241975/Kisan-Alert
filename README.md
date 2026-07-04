@@ -1,6 +1,6 @@
 # Kisan Alert — Smart Water, Crop & Advisory System
 
-Built for the *Code for Communities* hackathon (Kisan Alert track).
+Built for the farmers who want advices about their crops
 
 **Two working core flows:**
 1. **Crop health diagnosis** — voice or typed description + photo, analyzed by
