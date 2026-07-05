@@ -2,11 +2,12 @@
 
 Built for the farmers who want advices about their crops
 
-# Drive video link how to use:
+# Drive video link how to use
 https://drive.google.com/file/d/1zVZVTwNKH1lubeK3x6YRct4Cxx1cYlE_/view?usp=drivesdk
 
-# Live demo:
+# Live demo
 https://kisan-alert-v7ogbp8umwp25t72rgfzj9.streamlit.app/
+
 
 ## Screenshots
 
