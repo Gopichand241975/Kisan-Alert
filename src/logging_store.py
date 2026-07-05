@@ -6,8 +6,10 @@ requires a paid plan and we don't need to keep the image anyway.
 """
 
 import datetime
+import json
 import uuid
 from google.cloud import firestore
+from google.oauth2 import service_account
 
 _db = None
 
@@ -15,9 +17,19 @@ _db = None
 def _client():
     global _db
     if _db is None:
-        # Uses GOOGLE_APPLICATION_CREDENTIALS env var pointing to your
-        # Firebase service account JSON (see README for how to get this
-        # from the Firebase console — Project settings > Service accounts).
+        try:
+            import streamlit as st
+            if "firebase_credentials" in st.secrets:
+                # Running on Streamlit Community Cloud — build credentials
+                # from the JSON pasted into Secrets.
+                cred_dict = dict(st.secrets["firebase_credentials"])
+                credentials = service_account.Credentials.from_service_account_info(cred_dict)
+                _db = firestore.Client(credentials=credentials, project=cred_dict["project_id"])
+                return _db
+        except Exception:
+            pass
+        # Local fallback — uses GOOGLE_APPLICATION_CREDENTIALS env var
+        # pointing to your Firebase service account JSON file.
         _db = firestore.Client()
     return _db
 
