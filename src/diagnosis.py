@@ -40,7 +40,7 @@ def diagnose_crop(image_bytes: bytes, description: str, crop_hint: str = "unknow
     Run multimodal diagnosis on a crop photo + farmer description using
     the free Gemini API (no GCP project, no billing needed).
     """
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash-lite")
     image = Image.open(io.BytesIO(image_bytes))
     prompt = _DIAGNOSIS_PROMPT.format(description=description, crop_hint=crop_hint)
 
