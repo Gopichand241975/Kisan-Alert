@@ -5,7 +5,7 @@ from src.voice import build_spoken_advisory, transcribe_and_translate, LANGUAGES
 from src.logging_store import log_case, get_flagged_cases
 from src.weather import geocode_village, get_dry_spell_advisory
 
-st.set_page_config(page_title="Kisan Alert", page_icon="🌾", layout="centered")
+st.set_page_config(page_title="Kisan-Alert", page_icon="🌾", layout="centered")
 
 st.title("Kisan Alert")
 st.caption("Smart Water, Crop & Advisory System — crop health diagnosis for small and marginal farmers")
