@@ -2,29 +2,26 @@
 Kisan Alert — Smart Water, Crop & Advisory System
 Core flow: photo + voice crop diagnosis, spoken advisory in Indic languages,
 with automatic escalation to Rythu Seva Kendra for uncertain/severe cases.
-Also includes a weather-based dry-spell irrigation advisory and a
-soil-based crop suggestion.
+Also includes a weather-based dry-spell irrigation advisory.
 
 Runs entirely on free tiers: Gemini API (Google AI Studio) + Firestore
-(Firebase Spark plan) + Open-Meteo (no key needed at all) + SoilGrids
-(ISRIC, no key needed). No credit card, no GCP billing account, no
-subscriptions anywhere.
+(Firebase Spark plan) + Open-Meteo (no key needed at all). No credit card,
+no GCP billing account, no subscriptions anywhere.
 """
 
 import streamlit as st
 from src.diagnosis import diagnose_crop
 from src.voice import build_spoken_advisory, transcribe_and_translate, LANGUAGES
-from src.logging_store import log_case, get_flagged_cases, resolve_case
+from src.logging_store import log_case, get_flagged_cases
 from src.weather import geocode_village, get_dry_spell_advisory
-from src.soil import get_soil_data, recommend_crops
 
 st.set_page_config(page_title="Kisan Alert", page_icon="🌾", layout="centered")
 
 st.title("Kisan Alert")
 st.caption("Smart Water, Crop & Advisory System — crop health diagnosis for small and marginal farmers")
 
-tab_diagnose, tab_weather, tab_soil, tab_rsk = st.tabs(
-    ["Farmer: get a diagnosis", "Weather & irrigation advisory", "Soil & crop suggestion", "RSK: flagged cases"]
+tab_diagnose, tab_weather, tab_rsk = st.tabs(
+    ["Farmer: get a diagnosis", "Weather & irrigation advisory", "RSK: flagged cases"]
 )
 
 with tab_diagnose:
@@ -145,56 +142,6 @@ with tab_weather:
                     {d["date"][5:]: d["rain_mm"] for d in advisory["daily_forecast"]}
                 )
 
-with tab_soil:
-    st.subheader("Soil & crop suggestion")
-    st.caption("Free soil data (SoilGrids/ISRIC, no API key) + your 7-day rainfall forecast")
-
-    soil_village = st.text_input(
-        "Village / town name",
-        value=village if "village" in dir() and village else "",
-        key="soil_village",
-        placeholder="e.g. Anantapur",
-    )
-
-    if st.button("Get crop suggestion", type="primary", disabled=not soil_village):
-        with st.spinner("Looking up location..."):
-            try:
-                location = geocode_village(soil_village)
-            except Exception as e:
-                st.error(f"Could not reach the weather service: {e}")
-                location = None
-
-        if location is None:
-            st.warning("Could not find that village. Try a nearby larger town name instead.")
-        else:
-            with st.spinner("Fetching soil data..."):
-                try:
-                    soil = get_soil_data(location["latitude"], location["longitude"])
-                except Exception as e:
-                    st.error(f"Could not fetch soil data: {e}")
-                    soil = None
-
-            if soil:
-                st.write(
-                    f"pH: {soil['ph']:.1f} · Organic carbon: {soil['organic_carbon']} · "
-                    f"Sand/Clay/Silt: {soil['sand']}/{soil['clay']}/{soil['silt']} g/kg"
-                )
-
-                rainfall_mm = None
-                with st.spinner("Fetching rainfall forecast..."):
-                    try:
-                        advisory = get_dry_spell_advisory(location["latitude"], location["longitude"])
-                        rainfall_mm = sum(d["rain_mm"] for d in advisory["daily_forecast"])
-                    except Exception:
-                        pass
-
-                with st.spinner("Generating crop suggestion..."):
-                    try:
-                        suggestion = recommend_crops(soil, rainfall_mm, language)
-                        st.info(suggestion)
-                    except Exception as e:
-                        st.error(f"Could not generate suggestion: {e}")
-
 with tab_rsk:
     st.subheader("Cases flagged for expert follow-up")
     st.caption("In a pilot deployment, this view would be used by Rythu Seva Kendra staff.")
@@ -212,17 +159,5 @@ with tab_rsk:
                 st.write(f"Likely issue: {case['diagnosis']['likely_issue']}")
                 st.write(f"Explanation: {case['diagnosis']['explanation']}")
                 st.write(f"Logged at: {case['created_at']}")
-
-                expert_note = st.text_area(
-                    "Expert note / action taken",
-                    key=f"note_{case['case_id']}",
-                )
-                if st.button("Mark resolved", key=f"resolve_{case['case_id']}"):
-                    try:
-                        resolve_case(case["case_id"], expert_note)
-                        st.success("Marked resolved.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Could not update case: {e}")
     except Exception as e:
         st.caption(f"(Firestore not connected yet: {e})")
