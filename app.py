@@ -1,4 +1,3 @@
-
 import streamlit as st
 from src.diagnosis import diagnose_crop
 from src.voice import build_spoken_advisory, transcribe_and_translate, LANGUAGES
