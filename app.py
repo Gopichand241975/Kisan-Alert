@@ -151,3 +151,5 @@ with tab_rsk:
                 st.write(f"Logged at: {case['created_at']}")
     except Exception as e:
         st.caption(f"(Firestore not connected yet: {e})")
+
+
