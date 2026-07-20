@@ -1,154 +1,79 @@
-import streamlit as st
-from src.diagnosis import diagnose_crop
-from src.voice import build_spoken_advisory, transcribe_and_translate, LANGUAGES
-from src.logging_store import log_case, get_flagged_cases
-from src.weather import geocode_village, get_dry_spell_advisory
+"""
+Soil data + crop recommendation for Kisan Alert.
 
-st.set_page_config(page_title="Kisan-Alert", page_icon="🌾", layout="centered")
+Uses SoilGrids (ISRIC) for free, no-key soil properties by lat/lon, then
+asks Gemini for a short crop suggestion given soil + rainfall forecast.
+Mirrors the pattern used in src/weather.py (geocode -> lookup) and
+src/diagnosis.py (Gemini call).
+"""
 
-st.title("Kisan Alert")
-st.caption("Smart Water, Crop & Advisory System — crop health diagnosis for small and marginal farmers")
+import requests
+import google.generativeai as genai
 
-tab_diagnose, tab_weather, tab_rsk = st.tabs(
-    ["Farmer: get a diagnosis", "Weather & irrigation advisory", "RSK: flagged cases"]
-)
+SOILGRIDS_URL = "https://rest.isric.org/soilgrids/v2.0/properties/query"
 
-with tab_diagnose:
-    st.subheader("Upload a photo of the affected crop")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        farmer_name = st.text_input("Farmer name")
-    with col2:
-        village = st.text_input("Village")
+def get_soil_data(lat: float, lon: float) -> dict:
+    """Fetch topsoil (0-5cm) properties for a location from SoilGrids.
 
-    language = st.selectbox("Language", LANGUAGES, index=0)
-    crop_hint = st.text_input("Crop (optional, improves accuracy)", placeholder="e.g. cotton, paddy, chilli")
+    Returns pH, organic carbon, and sand/clay/silt fractions (g/kg).
+    Raises requests.HTTPError on failure — caller should catch and
+    show a calm message, same as the weather flow does.
+    """
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "property": ["phh2o", "soc", "sand", "clay", "silt"],
+        "depth": "0-5cm",
+        "value": "mean",
+    }
+    r = requests.get(SOILGRIDS_URL, params=params, timeout=15)
+    r.raise_for_status()
+    layers = r.json()["properties"]["layers"]
+    values = {layer["name"]: layer["depths"][0]["values"]["mean"] for layer in layers}
 
-    photo = st.file_uploader("Crop photo", type=["jpg", "jpeg", "png"])
+    # SoilGrids returns phh2o in pH*10 (conventional scale factor)
+    return {
+        "ph": values["phh2o"] / 10,
+        "organic_carbon": values["soc"],
+        "sand": values["sand"],
+        "clay": values["clay"],
+        "silt": values["silt"],
+    }
 
-    st.write("Describe the problem — speak into your microphone or type:")
-    input_mode = st.radio("Input method", ["Speak", "Type"], horizontal=True, label_visibility="collapsed")
 
-    description = ""
-    if input_mode == "Speak":
-        st.caption(f"Tap the microphone and speak in {language}")
-        voice_recording = st.audio_input("Record your voice note", key="voice_recording")
-        if voice_recording is not None:
-            with st.spinner("Understanding your voice note..."):
-                try:
-                    audio_bytes = voice_recording.getvalue()
-                    mime_type = voice_recording.type or "audio/wav"
-                    description = transcribe_and_translate(audio_bytes, mime_type, language)
-                    if description:
-                        st.success(f"Understood: \"{description}\"")
-                    else:
-                        st.warning("Could not understand that clearly — try again or switch to typing.")
-                except Exception as e:
-                    st.caption(f"(Voice understanding failed: {e}. Try typing instead.)")
-    else:
-        description = st.text_area("Type the problem description", placeholder="e.g. yellow spots on leaves, spreading fast")
+def recommend_crops(soil: dict, rainfall_mm: float | None, language: str) -> str:
+    """Ask Gemini for 2-3 crop suggestions given soil + rainfall context.
 
-    if st.button("Get diagnosis", type="primary", disabled=not (photo and description)):
-        with st.spinner("Analyzing photo..."):
-            image_bytes = photo.read()
-            try:
-                diagnosis = diagnose_crop(image_bytes, description, crop_hint or "unknown")
-            except Exception as e:
-                error_text = str(e)
-                if "ResourceExhausted" in error_text or "429" in error_text:
-                    st.error(
-                        "Our diagnosis service is briefly at capacity (free-tier rate limit). "
-                        "Please wait a minute and try again."
-                    )
-                else:
-                    st.error(
-                        "Something went wrong while analyzing this photo. Please try again "
-                        "or contact your local Rythu Seva Kendra directly."
-                    )
-                st.stop()
+    NOTE: assumes the same Gemini API key configuration your
+    src/diagnosis.py already sets up (genai.configure(api_key=...) at
+    import time or app startup). If diagnosis.py configures the client
+    differently, import and reuse that instead of calling
+    genai.GenerativeModel directly here.
+    """
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
-        st.image(image_bytes, caption="Submitted photo", width=300)
-        st.markdown(f"**Likely issue:** {diagnosis['likely_issue']} ({diagnosis['confidence']} confidence)")
-        st.write(diagnosis["explanation"])
-        st.info(f"**Recommended action:** {diagnosis['immediate_action']}")
-
-        if diagnosis.get("needs_expert_review"):
-            st.warning("This case has been flagged for review by your local Rythu Seva Kendra.")
-
-        with st.spinner(f"Preparing spoken advisory in {language}..."):
-            try:
-                translated_text, audio_bytes_out = build_spoken_advisory(diagnosis, language)
-                st.audio(audio_bytes_out, format="audio/wav")
-                st.caption(translated_text)
-            except Exception as e:
-                st.caption(f"(Voice output unavailable: {e})")
-
-        try:
-            case_id = log_case(farmer_name or "unknown", village or "unknown", language, diagnosis)
-            st.success(f"Case logged: {case_id}")
-        except Exception as e:
-            st.caption(f"(Logging unavailable: {e})")
-
-with tab_weather:
-    st.subheader("Dry-spell & irrigation advisory")
-    st.caption("Free 7-day rainfall forecast — no API key needed (powered by Open-Meteo)")
-
-    weather_village = st.text_input(
-        "Village / town name",
-        value=village if "village" in dir() and village else "",
-        key="weather_village",
-        placeholder="e.g. Anantapur",
+    rainfall_line = (
+        f"7-day forecast rainfall: {rainfall_mm:.0f} mm total."
+        if rainfall_mm is not None
+        else "Rainfall forecast unavailable."
     )
 
-    if st.button("Check forecast", type="primary", disabled=not weather_village):
-        with st.spinner("Looking up location..."):
-            try:
-                location = geocode_village(weather_village)
-            except Exception as e:
-                st.error(f"Could not reach the weather service: {e}")
-                location = None
+    prompt = f"""
+    You are an agricultural advisor for small and marginal farmers in India.
 
-        if location is None:
-            st.warning("Could not find that village. Try a nearby larger town name instead.")
-        else:
-            st.caption(f"Using forecast location: {location['name']}")
-            with st.spinner("Fetching 7-day rainfall forecast..."):
-                try:
-                    advisory = get_dry_spell_advisory(location["latitude"], location["longitude"])
-                except Exception as e:
-                    st.error(f"Could not fetch forecast: {e}")
-                    advisory = None
+    Soil data (topsoil, 0-5cm):
+    - pH: {soil['ph']:.1f}
+    - Organic carbon: {soil['organic_carbon']} dg/kg
+    - Sand: {soil['sand']} g/kg, Clay: {soil['clay']} g/kg, Silt: {soil['silt']} g/kg
 
-            if advisory:
-                if advisory["is_dry_spell"]:
-                    st.warning(advisory["message"])
-                else:
-                    st.success(advisory["message"])
+    {rainfall_line}
 
-                st.write("Daily forecast (rainfall in mm):")
-                st.bar_chart(
-                    {d["date"][5:]: d["rain_mm"] for d in advisory["daily_forecast"]}
-                )
+    Suggest 2-3 crops well suited to this soil and rainfall for the
+    current season. For each, give one short practical reason (1 line).
+    Keep the whole answer under 100 words, written in {language},
+    in plain farmer-friendly language — no jargon.
+    """
 
-with tab_rsk:
-    st.subheader("Cases flagged for expert follow-up")
-    st.caption("In a pilot deployment, this view would be used by Rythu Seva Kendra staff.")
-
-    if st.button("Refresh"):
-        st.rerun()
-
-    try:
-        cases = get_flagged_cases()
-        if not cases:
-            st.write("No flagged cases yet.")
-        for case in cases:
-            with st.expander(f"{case['farmer_name']} — {case['village']} ({case['case_id']})"):
-                st.write(f"Language: {case['language']}")
-                st.write(f"Likely issue: {case['diagnosis']['likely_issue']}")
-                st.write(f"Explanation: {case['diagnosis']['explanation']}")
-                st.write(f"Logged at: {case['created_at']}")
-    except Exception as e:
-        st.caption(f"(Firestore not connected yet: {e})")
-
-
+    response = model.generate_content(prompt)
+    return response.text.strip()
