@@ -1,13 +1,3 @@
-"""
-Kisan Alert — Smart Water, Crop & Advisory System
-Core flow: photo + voice crop diagnosis, spoken advisory in Indic languages,
-with automatic escalation to Rythu Seva Kendra for uncertain/severe cases.
-Also includes a weather-based dry-spell irrigation advisory.
-
-Runs entirely on free tiers: Gemini API (Google AI Studio) + Firestore
-(Firebase Spark plan) + Open-Meteo (no key needed at all). No credit card,
-no GCP billing account, no subscriptions anywhere.
-"""
 
 import streamlit as st
 from src.diagnosis import diagnose_crop
