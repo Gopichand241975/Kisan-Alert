@@ -82,6 +82,7 @@ Both would plug into the same `cases` Firestore collection.
 - No specialized/IoT hardware required
 
 ## future works
+- want to add soli misture testing
 
 ### Cost
 Entirely free — no credit card or paid subscription anywhere, for development or pilot-scale deployment.
