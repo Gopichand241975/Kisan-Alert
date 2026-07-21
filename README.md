@@ -81,5 +81,7 @@ Both would plug into the same `cases` Firestore collection.
 - Farmer's smartphone (real deployment) — camera + microphone
 - No specialized/IoT hardware required
 
+## future works
+
 ### Cost
 Entirely free — no credit card or paid subscription anywhere, for development or pilot-scale deployment.
