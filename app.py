@@ -1,8 +1,5 @@
 """
 Kisan Alert — Smart Water, Crop & Advisory System
-Core flow: photo + voice crop diagnosis, spoken advisory in Indic languages,
-with automatic escalation to Rythu Seva Kendra for uncertain/severe cases.
-
 """
 
 import streamlit as st
