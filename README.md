@@ -83,6 +83,7 @@ Both would plug into the same `cases` Firestore collection.
 
 ## future works
 - want to add soli misture testing
+- and corect the rsk will work
 
 ### Cost
 Entirely free — no credit card or paid subscription anywhere, for development or pilot-scale deployment.
